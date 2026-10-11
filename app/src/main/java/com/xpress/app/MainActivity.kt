@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xpress.app.job.JobState
 import com.xpress.app.ui.MainViewModel
 import com.xpress.app.ui.SourceState
+import com.xpress.app.ui.SourceVideo
 import com.xpress.app.ui.screens.EditorScreen
 import com.xpress.app.ui.screens.ErrorScreen
 import com.xpress.app.ui.screens.HomeScreen
@@ -104,6 +105,15 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(send, "Отправить видео"))
     }
 
+    /** What is on screen; the job outranks the editor so progress survives activity recreation. */
+    private sealed interface Screen {
+        data class Home(val source: SourceState) : Screen
+        data class Editor(val video: SourceVideo) : Screen
+        data class Progress(val job: JobState.Running) : Screen
+        data class Result(val job: JobState.Done) : Screen
+        data class Failure(val job: JobState.Failed) : Screen
+    }
+
     @Composable
     private fun Root() {
         val job by vm.job.collectAsStateWithLifecycle()
@@ -113,24 +123,32 @@ class MainActivity : ComponentActivity() {
         val plan by vm.plan.collectAsStateWithLifecycle()
         val thumbnails by vm.thumbnails.collectAsStateWithLifecycle()
 
-        val screen: Any = when {
-            job !is JobState.Idle -> job::class
-            source is SourceState.Ready -> (source as SourceState.Ready).video.uri
-            else -> "home"
+        val screen: Screen = when (val j = job) {
+            is JobState.Running -> Screen.Progress(j)
+            is JobState.Done -> Screen.Result(j)
+            is JobState.Failed -> Screen.Failure(j)
+            JobState.Idle -> when (val s = source) {
+                is SourceState.Ready -> Screen.Editor(s.video)
+                else -> Screen.Home(s)
+            }
         }
-        AnimatedContent(targetState = screen, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { key ->
-            val j = job
-            val s = source
-            when {
-                key == JobState.Running::class && j is JobState.Running -> ProgressScreen(j, onCancel = vm::cancel)
-                key == JobState.Done::class && j is JobState.Done -> ResultScreen(
-                    state = j,
-                    onShare = { share(j.result.outputUri) },
+        AnimatedContent(
+            targetState = screen,
+            // Progress ticks and source loading must not restart the cross-fade.
+            contentKey = { if (it is Screen.Editor) it.video.uri else it::class },
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "screen",
+        ) { s ->
+            when (s) {
+                is Screen.Progress -> ProgressScreen(s.job, onCancel = vm::cancel)
+                is Screen.Result -> ResultScreen(
+                    state = s.job,
+                    onShare = { share(s.job.result.outputUri) },
                     onTweak = vm::backToEditor,
                     onNew = vm::close,
                 )
-                key == JobState.Failed::class && j is JobState.Failed -> ErrorScreen(j, onBack = vm::backToEditor)
-                s is SourceState.Ready && key == s.video.uri -> EditorScreen(
+                is Screen.Failure -> ErrorScreen(s.job, onBack = vm::backToEditor)
+                is Screen.Editor -> EditorScreen(
                     video = s.video,
                     trim = trim,
                     thumbnails = thumbnails,
@@ -142,9 +160,9 @@ class MainActivity : ComponentActivity() {
                     onClose = vm::close,
                     onPickAnother = ::pickVideo,
                 )
-                else -> HomeScreen(
-                    loading = s is SourceState.Loading,
-                    error = (s as? SourceState.Error)?.message,
+                is Screen.Home -> HomeScreen(
+                    loading = s.source is SourceState.Loading,
+                    error = (s.source as? SourceState.Error)?.message,
                     onPickGallery = ::pickVideo,
                     onPickFile = { pickFile.launch(arrayOf("video/*")) },
                 )

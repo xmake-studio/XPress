@@ -32,7 +32,7 @@ object VideoProbe {
     }.getOrNull() ?: 0L
 
     fun probe(context: Context, uri: Uri): VideoInfo {
-        val url = FFmpegKitConfig.getSafParameterForRead(context, uri)
+        val url = if (uri.scheme == "file") uri.path!! else FFmpegKitConfig.getSafParameterForRead(context, uri)
             ?: throw ProbeException("Не удалось открыть файл")
         val media = FFprobeKit.getMediaInformation(url).mediaInformation
             ?: return probeWithRetriever(context, uri)

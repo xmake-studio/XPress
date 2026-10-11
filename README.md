@@ -50,8 +50,38 @@ H.264 открывается у всех получателей. Остальн�
 ```
 
 APK лежат в `app/build/outputs/apk/release/`: `app-arm64-v8a-release.apk` для телефонов,
-`app-x86_64-release.apk` для эмулятора. Release подписывается debug-ключом, чтобы ставиться
-без настройки. Перед публикацией подпишите своим ключом.
+`app-x86_64-release.apk` для эмулятора.
+
+Подпись release-сборки берётся из переменных `SIGNING_*` (так в CI) или из файла
+`~/.xpress-signing/signing.properties` (путь можно переопределить через `-Pxpress.signing=…`):
+
+```properties
+storeFile=C:/path/to/xpress-release.jks
+storePassword=…
+keyAlias=xpress
+keyPassword=…
+```
+
+Если ключа нет, сборка подписывается debug-ключом.
+
+## Релизы
+
+Готовые APK публикуются в [Releases](https://github.com/xmake-studio/XPress/releases). Чтобы выпустить
+версию, создайте и отправьте тег:
+
+```bash
+git tag v1.1.0
+```
+
+```bash
+git push origin v1.1.0
+```
+
+GitHub Actions ([release.yml](.github/workflows/release.yml)) прогонит тесты, соберёт подписанные APK
+(`versionName` и `versionCode` берутся из тега: `v1.2.3` → `1.2.3` / `10203`) и создаст релиз
+с файлами `XPress-<версия>-arm64-v8a.apk` и `XPress-<версия>-x86_64.apk`. Тег с суффиксом
+(`v1.2.0-beta`) публикуется как pre-release. Ключ подписи хранится в секретах репозитория
+`SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`.
 
 Тесты:
 

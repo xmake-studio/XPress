@@ -1,6 +1,32 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+/**
+ * Release signing, first match wins:
+ * 1. SIGNING_* environment variables (GitHub Actions),
+ * 2. a properties file at -Pxpress.signing=<path> or ~/.xpress-signing/signing.properties,
+ * 3. the debug key, so a fresh checkout still builds an installable APK.
+ */
+val releaseSigning: Map<String, String>? = run {
+    val env = System.getenv()
+    if (env["SIGNING_STORE_FILE"] != null) {
+        return@run mapOf(
+            "storeFile" to env.getValue("SIGNING_STORE_FILE"),
+            "storePassword" to env.getValue("SIGNING_STORE_PASSWORD"),
+            "keyAlias" to env.getValue("SIGNING_KEY_ALIAS"),
+            "keyPassword" to env.getValue("SIGNING_KEY_PASSWORD"),
+        )
+    }
+    val path = providers.gradleProperty("xpress.signing").orNull
+        ?: "${System.getProperty("user.home")}/.xpress-signing/signing.properties"
+    val file = File(path)
+    if (!file.isFile) return@run null
+    val p = Properties().apply { file.inputStream().use(::load) }
+    p.stringPropertyNames().associateWith { p.getProperty(it) }
 }
 
 android {
@@ -11,9 +37,21 @@ android {
         applicationId = "com.xpress.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // CI passes these from the git tag: v1.2.3 -> 1.2.3 / 10203.
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = file(releaseSigning.getValue("storeFile"))
+                storePassword = releaseSigning.getValue("storePassword")
+                keyAlias = releaseSigning.getValue("keyAlias")
+                keyPassword = releaseSigning.getValue("keyPassword")
+            }
+        }
     }
 
     // FFmpegKit ships only 64-bit binaries: one APK per ABI keeps the download small.
@@ -31,8 +69,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // No release keystore in the repo: sign with the debug key so the APK installs as is.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

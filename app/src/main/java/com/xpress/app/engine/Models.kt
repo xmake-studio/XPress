@@ -43,6 +43,8 @@ data class VideoInfo(
     val pixelFormat: String? = null,
     val colorTransfer: String? = null,
     val colorPrimaries: String? = null,
+    val colorSpace: String? = null,
+    val colorRange: String? = null,
     val videoBitrate: Long? = null,
     val hasAudio: Boolean = true,
     val audioCodec: String? = null,
@@ -56,6 +58,9 @@ data class VideoInfo(
     val longSide: Int get() = max(width, height)
     val is10Bit: Boolean get() = pixelFormat?.contains("10") == true
 }
+
+/** FFmpeg colour property names, see `ffmpeg -h filter=setparams`. */
+data class ColorTags(val matrix: String, val primaries: String, val transfer: String, val fullRange: Boolean)
 
 data class TrimRange(val startMs: Long, val endMs: Long) {
     val durationMs: Long get() = endMs - startMs
@@ -82,6 +87,9 @@ data class EncodePlan(
     val clipEnd: Boolean,
     /** Source HDR transfer (smpte2084 / arib-std-b67) when tonemapping to SDR is needed. */
     val hdrTransfer: String?,
+    /** Source colour as the decoder should treat it; FFmpeg alone sometimes guesses RGB. */
+    val sourceColor: ColorTags,
+    val outputColor: ColorTags,
     val scale: Boolean,
     val speed: EncodeSpeed,
     val warning: String? = null,

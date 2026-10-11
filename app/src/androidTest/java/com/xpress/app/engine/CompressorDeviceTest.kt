@@ -55,7 +55,7 @@ class CompressorDeviceTest {
             "-f", "lavfi", "-i", "testsrc2=s=$size:r=$fps:d=$seconds",
         )
         if (audio) args += listOf("-f", "lavfi", "-i", "sine=f=440:d=$seconds:sample_rate=48000")
-        args += listOf("-vf", "noise=alls=14:allf=t+u")
+        args += listOf("-vf", "format=yuv420p,noise=alls=14:allf=t+u")
         if (hdr) {
             args += listOf(
                 "-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le",
@@ -63,7 +63,10 @@ class CompressorDeviceTest {
                 "-x265-params", "log-level=error", "-b:v", "40M", "-tag:v", "hvc1",
             )
         } else {
-            args += listOf("-c:v", "libx264", "-preset", "ultrafast", "-b:v", "30M")
+            args += listOf(
+                "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "30M",
+                "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+            )
         }
         if (audio) args += listOf("-c:a", "aac", "-b:a", "256k", "-ac", "2")
         args += listOf("-shortest", raw.absolutePath)
@@ -79,8 +82,10 @@ class CompressorDeviceTest {
         val info = VideoProbe.probe(ctx, uri)
         val request = CompressRequest(uri, src.name, info, trim ?: TrimRange(0, info.durationMs), settings)
         var lastProgress = 0f
-        val result = runBlocking {
-            Compressor(ctx).compress(request) { lastProgress = it.fraction }
+        val result = try {
+            runBlocking { Compressor(ctx).compress(request) { lastProgress = it.fraction } }
+        } catch (e: CompressException) {
+            throw AssertionError("${e.message}\n${e.details}", e)
         }
         saved += result.outputUri
         assertEquals(1f, lastProgress, 0.001f)
@@ -115,6 +120,7 @@ class CompressorDeviceTest {
         assertEquals("h264", v.getString("codec_name"))
         assertEquals("yuv420p", v.getString("pix_fmt"))
         assertEquals("bt709", v.optString("color_transfer"))
+        assertEquals("bt709", v.optString("color_space"))
         assertTrue(v.getInt("width") < v.getInt("height"))
         assertEquals(result.plan.width, v.getInt("width"))
         assertEquals(result.plan.height, v.getInt("height"))
@@ -134,6 +140,7 @@ class CompressorDeviceTest {
         assertTrue("size ${result.sizeBytes}", result.sizeBytes >= 2_800_000)
         assertNull(json.stream("audio"))
         assertEquals(7.0, json.duration(), 0.1)
+        assertEquals("bt709", json.stream("video")!!.optString("color_space"))
     }
 
     @Test
@@ -144,6 +151,7 @@ class CompressorDeviceTest {
         val v = json.stream("video")!!
         assertEquals("hevc", v.getString("codec_name"))
         assertEquals("hvc1", v.getString("codec_tag_string"))
+        assertEquals("bt709", v.optString("color_space"))
     }
 
     @Test
@@ -151,6 +159,7 @@ class CompressorDeviceTest {
         val src = source("av1", seconds = 4, size = "854x480", fps = 30)
         val (result, json) = compress(src, CompressSettings(targetSizeMb = 1.0, codec = VideoCodec.AV1, speed = EncodeSpeed.FAST))
         assertTrue(result.sizeBytes <= 1_000_000)
+        assertTrue("size ${result.sizeBytes}", result.sizeBytes >= 940_000)
         assertEquals("av1", json.stream("video")!!.getString("codec_name"))
     }
 

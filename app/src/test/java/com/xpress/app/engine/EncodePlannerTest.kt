@@ -121,7 +121,7 @@ class EncodePlannerTest {
         assertTrue(args.contains("0:a:0?"))
         assertTrue(args.contains("libx264"))
         val vf = args[args.indexOf("-vf") + 1]
-        assertTrue(vf, vf.startsWith("fps=30"))
+        assertTrue(vf, vf.startsWith("setparams=range=tv:color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc,fps=30"))
         assertTrue(vf, vf.contains("tin=arib-std-b67"))
         assertTrue(vf, vf.contains("tonemap=tonemap=hable"))
         assertTrue(vf, vf.endsWith("format=yuv420p"))

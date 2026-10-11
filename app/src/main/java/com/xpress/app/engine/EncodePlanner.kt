@@ -90,9 +90,37 @@ object EncodePlanner {
             durationMs = durationMs,
             clipEnd = trim.endMs < info.durationMs - 1,
             hdrTransfer = info.colorTransfer.takeIf { info.isHdr },
+            sourceColor = sourceColor(info),
+            outputColor = if (info.isHdr) ColorTags("bt709", "bt709", "bt709", false) else sourceColor(info).copy(fullRange = false),
             scale = w != even(info.width.toDouble()) || h != even(info.height.toDouble()),
             speed = s.speed,
             warning = warning,
+        )
+    }
+
+    private val MATRICES = setOf("bt709", "smpte170m", "bt470bg", "bt2020nc", "bt2020c", "smpte240m", "fcc")
+    private val PRIMARIES = setOf("bt709", "smpte170m", "bt470bg", "bt470m", "bt2020", "smpte240m", "smpte431", "smpte432")
+    private val TRANSFERS = setOf(
+        "bt709", "smpte170m", "bt470bg", "bt470m", "smpte240m", "iec61966-2-1",
+        "bt2020-10", "bt2020-12", "smpte2084", "arib-std-b67", "linear",
+    )
+
+    /**
+     * Colour tags with sane fallbacks: untagged HD is BT.709, untagged SD is BT.601, HDR is BT.2020.
+     * "gbr" never applies to a YUV phone video, it only shows up as a bogus default.
+     */
+    fun sourceColor(info: VideoInfo): ColorTags {
+        val sd = info.shortSide < 720
+        val fallback = when {
+            info.isHdr -> "bt2020"
+            sd -> "smpte170m"
+            else -> "bt709"
+        }
+        return ColorTags(
+            matrix = info.colorSpace?.takeIf { it in MATRICES } ?: if (info.isHdr) "bt2020nc" else fallback,
+            primaries = info.colorPrimaries?.takeIf { it in PRIMARIES } ?: fallback,
+            transfer = info.colorTransfer?.takeIf { it in TRANSFERS } ?: if (sd) "smpte170m" else "bt709",
+            fullRange = info.colorRange == "pc",
         )
     }
 

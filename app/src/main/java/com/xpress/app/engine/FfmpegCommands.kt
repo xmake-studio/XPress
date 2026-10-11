@@ -35,9 +35,13 @@ object FfmpegCommands {
         addAll(listOf("-map_metadata", "-1", "-map_chapters", "-1", "-sn", "-dn"))
 
         addAll(listOf("-vf", videoFilter(plan)))
-        if (plan.tonemap) {
-            addAll(listOf("-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"))
-        }
+        val out = plan.outputColor
+        addAll(
+            listOf(
+                "-color_primaries", out.primaries, "-color_trc", out.transfer,
+                "-colorspace", out.matrix, "-color_range", "tv",
+            )
+        )
         addAll(videoCodecArgs(plan, pass, passLog, videoKbps))
 
         if (withAudio) {
@@ -55,18 +59,24 @@ object FfmpegCommands {
     }
 
     fun videoFilter(plan: EncodePlan): String {
+        val src = plan.sourceColor
         val filters = mutableListOf<String>()
+        // FFmpeg may configure the graph before the first frame with colorspace 0 ("gbr"),
+        // which breaks zscale and x265. Pin the real source colour up front.
+        filters += "setparams=range=${if (src.fullRange) "pc" else "tv"}:color_primaries=${src.primaries}" +
+            ":color_trc=${src.transfer}:colorspace=${src.matrix}"
         // Drop frames first so the expensive scaling/tonemapping runs on fewer of them.
         if (plan.reduceFps) filters += "fps=${fpsExpr(plan.fps)}"
         if (plan.tonemap) {
-            filters += "zscale=w=${plan.width}:h=${plan.height}:f=spline36:tin=${plan.hdrTransfer}:pin=bt2020:min=bt2020nc"
+            filters += "zscale=w=${plan.width}:h=${plan.height}:f=spline36" +
+                ":tin=${src.transfer}:pin=${src.primaries}:min=${src.matrix}:rin=${if (src.fullRange) "full" else "limited"}"
             filters += "zscale=t=linear:npl=100"
             filters += "format=gbrpf32le"
             filters += "zscale=p=bt709"
             filters += "tonemap=tonemap=hable:desat=0"
             filters += "zscale=t=bt709:m=bt709:r=tv"
-        } else if (plan.scale) {
-            filters += "scale=${plan.width}:${plan.height}:flags=lanczos"
+        } else if (plan.scale || src.fullRange) {
+            filters += "scale=${plan.width}:${plan.height}:flags=lanczos:out_range=tv"
         }
         filters += "format=yuv420p"
         return filters.joinToString(",")
@@ -83,7 +93,7 @@ object FfmpegCommands {
                 passArgs(pass, passLog)
             }
             VideoCodec.HEVC -> {
-                addAll(listOf("-c:v", "libx265", "-preset", x265Preset(plan.speed), "-profile:v", "main"))
+                addAll(listOf("-c:v", "libx265", "-preset", x265Preset(plan.speed)))
                 rateControl(plan, videoKbps)
                 val params = mutableListOf("log-level=error", "keyint=$gop")
                 when (pass) {

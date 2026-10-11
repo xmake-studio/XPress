@@ -93,7 +93,8 @@ class Compressor(private val context: Context) {
                 }
                 val limit = plan.targetBytes
                 var best: Pair<File, Int>? = null
-                var lastSize = 0L
+                // Size of the last fitting attempt we raised the bitrate from.
+                var raisedFrom: Long? = null
                 var attempt = 1
                 while (true) {
                     val out = File(work, "out_$attempt.mp4")
@@ -111,15 +112,15 @@ class Compressor(private val context: Context) {
                         if (best == null || size > best.first.length()) best = out to kbps!!
                         // Stop when close enough, or when a higher bitrate no longer grows the file
                         // (the encoder already spends as much as the content can use).
-                        val stalled = attempt > 1 && size <= lastSize * 1.01
+                        val stalled = raisedFrom != null && size <= raisedFrom * 1.01
                         if (size >= limit * ACCEPT_FILL || attempt >= MAX_ATTEMPTS || stalled) break
                         kbps = scaled(kbps!!, size, (limit * REFINE_FILL).toLong(), fixed, up = true)
+                        raisedFrom = size
                     } else {
                         // The previous attempt fit: keep it rather than spending more passes.
                         if (best != null || attempt >= MAX_ATTEMPTS) break
                         kbps = scaled(kbps!!, size, (limit * OVERSHOOT_FILL).toLong(), fixed, up = false)
                     }
-                    lastSize = size
                     attempt++
                 }
                 attempts = attempt

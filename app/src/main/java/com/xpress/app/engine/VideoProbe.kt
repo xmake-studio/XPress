@@ -67,6 +67,8 @@ object VideoProbe {
             pixelFormat = props.optString("pix_fmt").ifEmpty { null },
             colorTransfer = props.optString("color_transfer").ifEmpty { null },
             colorPrimaries = props.optString("color_primaries").ifEmpty { null },
+            colorSpace = props.optString("color_space").ifEmpty { null },
+            colorRange = props.optString("color_range").ifEmpty { null },
             videoBitrate = video.bitrate?.toLongOrNull(),
             hasAudio = audio != null,
             audioCodec = audio?.codec,

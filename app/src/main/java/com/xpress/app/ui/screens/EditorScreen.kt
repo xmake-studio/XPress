@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.SeekParameters
@@ -169,7 +170,15 @@ fun EditorScreen(
                 ) {
                     VideoSurface(player, Modifier.fillMaxSize())
                     val playAlpha by animateFloatAsState(if (playerState.isPlaying) 0f else 1f, label = "play")
-                    if (playAlpha > 0f) {
+                    if (playerState.failed) {
+                        Text(
+                            "Предпросмотр недоступен на этом устройстве.\nСжатие при этом работает.",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        )
+                    } else if (playAlpha > 0f) {
                         Box(
                             Modifier
                                 .align(Alignment.Center)

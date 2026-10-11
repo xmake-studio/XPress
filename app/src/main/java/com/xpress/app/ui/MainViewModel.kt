@@ -1,7 +1,6 @@
 package com.xpress.app.ui
 
 import android.app.Application
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -13,6 +12,7 @@ import com.xpress.app.engine.CompressSettings
 import com.xpress.app.engine.EncodePlan
 import com.xpress.app.engine.EncodePlanner
 import com.xpress.app.engine.ProbeException
+import com.xpress.app.engine.Thumbnails
 import com.xpress.app.engine.TrimRange
 import com.xpress.app.engine.VideoInfo
 import com.xpress.app.engine.VideoProbe
@@ -76,7 +76,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _trim.value = TrimRange(0, video.info.durationMs)
                 _source.value = SourceState.Ready(video)
-                _thumbnails.value = withContext(Dispatchers.IO) { loadThumbnails(uri, video.info.durationMs) }
+                _thumbnails.value = withContext(Dispatchers.IO) {
+                    Thumbnails.load(ctx, uri, video.info.durationMs).map { it.asImageBitmap() }
+                }
             } catch (e: ProbeException) {
                 _source.value = SourceState.Error(e.message ?: "Не удалось открыть видео")
             } catch (e: SecurityException) {
@@ -116,21 +118,4 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun cancel() = JobManager.cancel(getApplication())
 
     fun backToEditor() = JobManager.reset()
-
-    private fun loadThumbnails(uri: Uri, durationMs: Long, count: Int = 10): List<ImageBitmap> {
-        val r = MediaMetadataRetriever()
-        return try {
-            r.setDataSource(getApplication(), uri)
-            (0 until count).mapNotNull { i ->
-                val t = durationMs * 1000 * (2 * i + 1) / (2 * count)
-                runCatching {
-                    r.getScaledFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 192, 192)
-                }.getOrNull()?.asImageBitmap()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        } finally {
-            r.release()
-        }
-    }
 }

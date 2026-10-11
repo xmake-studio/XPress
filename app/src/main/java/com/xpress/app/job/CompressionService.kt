@@ -106,7 +106,8 @@ class CompressionService : LifecycleService() {
         } else {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         }
-        ServiceCompat.startForeground(this, ID_PROGRESS, notification, type)
+        // Platform call on purpose: ServiceCompat masks out types newer than it knows (mediaProcessing).
+        startForeground(ID_PROGRESS, notification, type)
     }
 
     private fun openAppIntent(): PendingIntent = PendingIntent.getActivity(

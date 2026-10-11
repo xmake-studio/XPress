@@ -32,6 +32,9 @@ object VideoProbe {
     }.getOrNull() ?: 0L
 
     fun probe(context: Context, uri: Uri): VideoInfo {
+        // FFmpegKit swallows permission errors; surface them before they look like a bad format.
+        context.contentResolver.openFileDescriptor(uri, "r")?.close()
+            ?: throw ProbeException("Не удалось открыть файл")
         val url = if (uri.scheme == "file") uri.path!! else FFmpegKitConfig.getSafParameterForRead(context, uri)
             ?: throw ProbeException("Не удалось открыть файл")
         val media = FFprobeKit.getMediaInformation(url).mediaInformation

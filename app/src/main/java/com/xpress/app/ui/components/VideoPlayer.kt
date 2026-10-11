@@ -16,8 +16,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -28,7 +30,8 @@ import com.xpress.app.R
 fun rememberPlayer(uri: Uri): ExoPlayer {
     val context = LocalContext.current
     val player = remember(uri) {
-        ExoPlayer.Builder(context).build().apply {
+        // Decoder fallback: if the hardware decoder rejects a stream (say, 10-bit HEVC), try the next one.
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true)).build().apply {
             setMediaItem(MediaItem.fromUri(uri))
             prepare()
         }
@@ -49,6 +52,7 @@ fun rememberPlayer(uri: Uri): ExoPlayer {
 class PlayerUiState {
     var isPlaying by mutableStateOf(false)
     var isReady by mutableStateOf(false)
+    var failed by mutableStateOf(false)
 }
 
 @Composable
@@ -62,6 +66,10 @@ fun rememberPlayerUiState(player: Player): PlayerUiState {
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 state.isReady = playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                state.failed = true
             }
         }
         player.addListener(listener)

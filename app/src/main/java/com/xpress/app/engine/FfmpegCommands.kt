@@ -70,10 +70,12 @@ object FfmpegCommands {
         if (plan.tonemap) {
             filters += "zscale=w=${plan.width}:h=${plan.height}:f=spline36" +
                 ":tin=${src.transfer}:pin=${src.primaries}:min=${src.matrix}:rin=${if (src.fullRange) "full" else "limited"}"
-            filters += "zscale=t=linear:npl=100"
+            // BT.2408: HDR reference white is 203 nits; mapping it to SDR white keeps faces and skies
+            // at natural brightness, mobius then rolls off only the highlights above it.
+            filters += "zscale=t=linear:npl=203"
             filters += "format=gbrpf32le"
             filters += "zscale=p=bt709"
-            filters += "tonemap=tonemap=hable:desat=0"
+            filters += "tonemap=tonemap=mobius:desat=0"
             filters += "zscale=t=bt709:m=bt709:r=tv"
         } else if (plan.scale || src.fullRange) {
             filters += "scale=${plan.width}:${plan.height}:flags=lanczos:out_range=tv"

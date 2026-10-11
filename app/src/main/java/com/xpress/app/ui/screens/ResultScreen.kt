@@ -119,7 +119,7 @@ fun ResultScreen(
                     textAlign = TextAlign.Center,
                 )
                 plan.targetBytes?.let { limit ->
-                    val fill = (result.sizeBytes * 1000.0 / limit).roundToInt() / 10.0
+                    val fill = String.format(java.util.Locale.forLanguageTag("ru"), "%.1f", result.sizeBytes * 100.0 / limit)
                     Text(
                         "Заполнено $fill% лимита · проходов: ${result.attempts + 1} · ${formatEta(result.elapsedMs / 1000)}",
                         style = MaterialTheme.typography.bodySmall,

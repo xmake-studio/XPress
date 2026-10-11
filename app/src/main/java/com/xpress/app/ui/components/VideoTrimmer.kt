@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -63,7 +64,8 @@ fun VideoTrimmer(
     val onFinished by rememberUpdatedState(onRangeChangeFinished)
     val seek by rememberUpdatedState(onSeek)
 
-    BoxWithConstraints(modifier.fillMaxWidth().height(64.dp)) {
+    // Handles sit at the screen edges, right where the system back gesture lives.
+    BoxWithConstraints(modifier.fillMaxWidth().height(64.dp).systemGestureExclusion()) {
         val density = LocalDensity.current
         val handlePx = with(density) { handleWidth.toPx() }
         val totalPx = with(density) { maxWidth.toPx() }

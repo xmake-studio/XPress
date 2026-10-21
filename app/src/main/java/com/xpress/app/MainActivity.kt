@@ -12,41 +12,60 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xpress.app.job.JobState
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.xpress.app.engine.toMediaRef
+import com.xpress.app.engine.uri
+import com.xpress.app.ui.AppHost
 import com.xpress.app.ui.MainViewModel
-import com.xpress.app.ui.SourceState
-import com.xpress.app.ui.SourceVideo
-import com.xpress.app.ui.screens.EditorScreen
-import com.xpress.app.ui.screens.ErrorScreen
-import com.xpress.app.ui.screens.HomeScreen
-import com.xpress.app.ui.screens.ProgressScreen
-import com.xpress.app.ui.screens.ResultScreen
+import com.xpress.app.ui.XPressApp
 import com.xpress.app.ui.theme.XPressTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val vm: MainViewModel by viewModels()
+    private val vm: MainViewModel by viewModels {
+        viewModelFactory { initializer { MainViewModel(AndroidPlatform(application)) } }
+    }
 
     private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let(vm::open)
+        uri?.let { vm.open(it.toMediaRef()) }
     }
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(vm::open)
+        uri?.let { vm.open(it.toMediaRef()) }
     }
+
+    private val host = AppHost(
+        onPickVideo = ::pickVideo,
+        onPickFile = { pickFile.launch(arrayOf("video/*")) },
+        homeHint = "Или в галерее: «Поделиться» → XPress",
+        homeHintIcon = Icons.Outlined.IosShare,
+        onCompress = ::startCompression,
+        resultActions = { result ->
+            Button(onClick = { share(result.output.uri) }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Icon(Icons.Outlined.Share, null)
+                Spacer(Modifier.width(10.dp))
+                Text("Поделиться", style = MaterialTheme.typography.titleMedium)
+            }
+        },
+    )
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         // Compression runs either way; the permission only controls the progress notification.
@@ -61,7 +80,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             XPressTheme {
                 Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-                    Root()
+                    XPressApp(vm, host)
                 }
             }
         }
@@ -73,7 +92,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        sharedUri(intent ?: return)?.let(vm::open)
+        sharedUri(intent ?: return)?.let { vm.open(it.toMediaRef()) }
     }
 
     private fun sharedUri(intent: Intent): Uri? = when (intent.action) {
@@ -103,70 +122,5 @@ class MainActivity : ComponentActivity() {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         startActivity(Intent.createChooser(send, "Отправить видео"))
-    }
-
-    /** What is on screen; the job outranks the editor so progress survives activity recreation. */
-    private sealed interface Screen {
-        data class Home(val source: SourceState) : Screen
-        data class Editor(val video: SourceVideo) : Screen
-        data class Progress(val job: JobState.Running) : Screen
-        data class Result(val job: JobState.Done) : Screen
-        data class Failure(val job: JobState.Failed) : Screen
-    }
-
-    @Composable
-    private fun Root() {
-        val job by vm.job.collectAsStateWithLifecycle()
-        val source by vm.source.collectAsStateWithLifecycle()
-        val trim by vm.trim.collectAsStateWithLifecycle()
-        val settings by vm.settings.collectAsStateWithLifecycle()
-        val plan by vm.plan.collectAsStateWithLifecycle()
-        val thumbnails by vm.thumbnails.collectAsStateWithLifecycle()
-
-        val screen: Screen = when (val j = job) {
-            is JobState.Running -> Screen.Progress(j)
-            is JobState.Done -> Screen.Result(j)
-            is JobState.Failed -> Screen.Failure(j)
-            JobState.Idle -> when (val s = source) {
-                is SourceState.Ready -> Screen.Editor(s.video)
-                else -> Screen.Home(s)
-            }
-        }
-        AnimatedContent(
-            targetState = screen,
-            // Progress ticks and source loading must not restart the cross-fade.
-            contentKey = { if (it is Screen.Editor) it.video.uri else it::class },
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "screen",
-        ) { s ->
-            when (s) {
-                is Screen.Progress -> ProgressScreen(s.job, onCancel = vm::cancel)
-                is Screen.Result -> ResultScreen(
-                    state = s.job,
-                    onShare = { share(s.job.result.outputUri) },
-                    onTweak = vm::backToEditor,
-                    onNew = vm::close,
-                )
-                is Screen.Failure -> ErrorScreen(s.job, onBack = vm::backToEditor)
-                is Screen.Editor -> EditorScreen(
-                    video = s.video,
-                    trim = trim,
-                    thumbnails = thumbnails,
-                    settings = settings,
-                    plan = plan,
-                    onTrim = vm::setTrim,
-                    onSettings = vm::updateSettings,
-                    onCompress = ::startCompression,
-                    onClose = vm::close,
-                    onPickAnother = ::pickVideo,
-                )
-                is Screen.Home -> HomeScreen(
-                    loading = s.source is SourceState.Loading,
-                    error = (s.source as? SourceState.Error)?.message,
-                    onPickGallery = ::pickVideo,
-                    onPickFile = { pickFile.launch(arrayOf("video/*")) },
-                )
-            }
-        }
     }
 }

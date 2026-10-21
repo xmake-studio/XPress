@@ -80,17 +80,17 @@ class CompressorDeviceTest {
     private fun compress(src: File, settings: CompressSettings, trim: TrimRange? = null): Pair<CompressResult, JSONObject> {
         val uri = Uri.fromFile(src)
         val info = VideoProbe.probe(ctx, uri)
-        val request = CompressRequest(uri, src.name, info, trim ?: TrimRange(0, info.durationMs), settings)
+        val request = CompressRequest(uri.toMediaRef(), src.name, info, trim ?: TrimRange(0, info.durationMs), settings)
         var lastProgress = 0f
         val result = try {
-            runBlocking { Compressor(ctx).compress(request) { lastProgress = it.fraction } }
+            runBlocking { Compressor(AndroidEncoder(ctx)).compress(request) { lastProgress = it.fraction } }
         } catch (e: CompressException) {
             throw AssertionError("${e.message}\n${e.details}", e)
         }
-        saved += result.outputUri
+        saved += result.output.uri
         assertEquals(1f, lastProgress, 0.001f)
         val out = File(dir, "check.mp4")
-        ctx.contentResolver.openInputStream(result.outputUri)!!.use { i -> out.outputStream().use { i.copyTo(it) } }
+        ctx.contentResolver.openInputStream(result.output.uri)!!.use { i -> out.outputStream().use { i.copyTo(it) } }
         assertEquals(result.sizeBytes, out.length())
         val probe = FFprobeKit.getMediaInformation(out.absolutePath).mediaInformation
         Log.i("XPressTest", "${src.name}: ${result.sizeBytes} B, ${result.attempts} attempt(s), kbps=${result.finalVideoKbps}, ${result.plan}")

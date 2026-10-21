@@ -19,7 +19,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.xpress.app.MainActivity
 import com.xpress.app.R
-import com.xpress.app.engine.CompressException
+import com.xpress.app.engine.AndroidEncoder
 import com.xpress.app.engine.Compressor
 import com.xpress.app.ui.formatBytes
 import com.xpress.app.ui.formatEta
@@ -69,22 +69,18 @@ class CompressionService : LifecycleService() {
         acquireWakeLock()
         job = lifecycleScope.launch {
             val state = try {
-                val result = withContext(Dispatchers.Default) {
-                    Compressor(applicationContext).compress(request) { p ->
-                        JobManager.update(JobState.Running(request, p))
+                withContext(Dispatchers.Default) {
+                    JobManager.execute(request, Compressor(AndroidEncoder(applicationContext))) { p ->
                         notifyProgress(stageLabel(p.stage, p.attempt), (p.fraction * 100).toInt(), p.etaSeconds)
                     }
                 }
-                notifyDone("Готово: ${formatBytes(result.sizeBytes)}", result.outputName)
-                JobState.Done(request, result)
             } catch (e: CancellationException) {
                 JobState.Idle
-            } catch (e: CompressException) {
-                notifyDone("Не удалось сжать видео", e.message ?: "")
-                JobState.Failed(request, e.message ?: "Ошибка", e.details)
-            } catch (e: Exception) {
-                notifyDone("Не удалось сжать видео", e.message ?: "")
-                JobState.Failed(request, "Непредвиденная ошибка", e.stackTraceToString().take(4000))
+            }
+            when (state) {
+                is JobState.Done -> notifyDone("Готово: ${formatBytes(state.result.sizeBytes)}", state.result.outputName)
+                is JobState.Failed -> notifyDone("Не удалось сжать видео", state.message)
+                else -> Unit
             }
             JobManager.update(state)
             releaseWakeLock()

@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "XPress"
-include(":app")
+include(":shared", ":app", ":desktop")

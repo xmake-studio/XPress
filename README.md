@@ -1,6 +1,6 @@
 # XPress
 
-Android-приложение, которое сжимает видео ровно под заданный размер файла. По умолчанию это
+Приложение для Android и Windows, которое сжимает видео ровно под заданный размер файла. По умолчанию это
 10 МБ для Discord, и из этого лимита выжимается максимум.
 
 ## Возможности
@@ -19,6 +19,20 @@ Android-приложение, которое сжимает видео ровн�
   «Поделиться».
 - Сжатие идёт в фоне через foreground-сервис с прогрессом в уведомлении. У приложения **нет
   доступа в интернет**. Метаданные (GPS, модель телефона) из результата вырезаются.
+
+## Windows
+
+Та же логика и те же экраны, что на телефоне, в окне Windows 10/11:
+
+- Видео открывается кнопкой «Выбрать видео», **перетаскиванием в окно** или на ярлык XPress.
+- Вместо плеера в редакторе показываются кадры: превью обновляется при перетаскивании ручек обрезки.
+  На экране результата кнопка ▶ открывает файл в системном плеере.
+- Готовый файл сохраняется в `Видео\XPress` (с учётом переноса папки в OneDrive). Кнопка
+  **«Скопировать файл»** кладёт его в буфер обмена так же, как «Копировать» в Проводнике:
+  в Discord или Telegram он вставляется через Ctrl+V.
+- Прогресс виден на кнопке в панели задач, во время сжатия компьютер не уходит в сон.
+- FFmpeg 8.1 (та же ветка, что на Android) входит в установщик, отдельно ставить ничего не нужно.
+  Установка не требует прав администратора.
 
 ## Как выжимается максимум из 10 МБ
 
@@ -43,10 +57,16 @@ H.264 открывается у всех получателей. Остальн�
 
 ## Сборка
 
-Нужны JDK 17 и Android SDK 36.
+Проект на Kotlin Multiplatform:
+
+- `shared` — общий код: расчёт параметров, команды FFmpeg, подгонка размера и все экраны на Compose Multiplatform.
+- `app` — Android: Activity, foreground-сервис, FFmpegKit, ExoPlayer.
+- `desktop` — Windows: окно, запуск `ffmpeg.exe` и `ffprobe.exe`, установщик.
+
+Нужны JDK 17+ и Android SDK 36.
 
 ```bash
-./gradlew assembleRelease
+./gradlew :app:assembleRelease
 ```
 
 APK лежат в `app/build/outputs/apk/release/`: `app-arm64-v8a-release.apk` для телефонов,
@@ -64,9 +84,22 @@ keyPassword=…
 
 Если ключа нет, сборка подписывается debug-ключом.
 
+Windows-версию можно запустить из исходников или собрать установщик (на Windows, JDK 17+;
+WiX и FFmpeg Gradle скачает сам, архив FFmpeg проверяется по SHA-256):
+
+```bash
+./gradlew :desktop:run
+```
+
+```bash
+./gradlew :desktop:packageReleaseMsi
+```
+
+MSI появится в `desktop/build/compose/binaries/main-release/msi/`.
+
 ## Релизы
 
-Готовые APK публикуются в [Releases](https://github.com/xmake-studio/XPress/releases). Чтобы выпустить
+Готовые APK и установщик для Windows публикуются в [Releases](https://github.com/xmake-studio/XPress/releases). Чтобы выпустить
 версию, создайте и отправьте тег:
 
 ```bash
@@ -78,29 +111,35 @@ git push origin v1.1.0
 ```
 
 GitHub Actions ([release.yml](.github/workflows/release.yml)) прогонит тесты, соберёт подписанные APK
-(`versionName` и `versionCode` берутся из тега: `v1.2.3` → `1.2.3` / `10203`) и создаст релиз
-с файлами `XPress-<версия>-arm64-v8a.apk` и `XPress-<версия>-x86_64.apk`. Тег с суффиксом
+(`versionName` и `versionCode` берутся из тега: `v1.2.3` → `1.2.3` / `10203`) и MSI на Windows-раннере
+и создаст релиз с файлами `XPress-<версия>-arm64-v8a.apk`, `XPress-<версия>-x86_64.apk`
+и `XPress-<версия>-windows-x64.msi`. Тег с суффиксом
 (`v1.2.0-beta`) публикуется как pre-release. Ключ подписи хранится в секретах репозитория
 `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`.
 
 Тесты:
 
 ```bash
-./gradlew testDebugUnitTest
+./gradlew :shared:desktopTest
+```
+
+```bash
+./gradlew :desktop:test
 ```
 
 ```bash
 ./gradlew connectedDebugAndroidTest
 ```
 
-Инструментальные тесты генерируют на устройстве синтетические HDR/HEVC/повёрнутые исходники
-и прогоняют настоящий FFmpeg.
+`:desktop:test` (на Windows) и инструментальные тесты на Android генерируют синтетические
+HDR/HEVC/повёрнутые исходники и прогоняют настоящий FFmpeg своей платформы.
 
 ## Стек
 
-Kotlin, Jetpack Compose + Material 3 (динамические цвета), Media3 ExoPlayer,
+Kotlin Multiplatform, Compose Multiplatform + Material 3 (динамические цвета на Android), Media3 ExoPlayer,
 [FFmpegKit (поддерживаемый форк)](https://github.com/ffmpegkit-maintained/ffmpeg) на FFmpeg 8.1
-с libx264, libx265, libaom, dav1d и zimg. minSdk 29 (Android 10).
+с libx264, libx265, libaom, dav1d и zimg. minSdk 29 (Android 10). На Windows — статическая GPL-сборка
+FFmpeg 8.1 от [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) и JNA для known folders и режима без сна.
 
 ## Лицензия
 

@@ -6,6 +6,8 @@
 .DS_Store
 /build/
 /app/build/
+/shared/build/
+/desktop/build/
 /captures/
 .externalNativeBuild/
 .cxx/

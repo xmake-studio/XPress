@@ -1,7 +1,7 @@
 name: Release
 
-# Push a tag like v1.2.3 to build signed APKs and publish them as a GitHub Release.
-# Running it by hand (workflow_dispatch) builds the same APKs as an artifact, without a release.
+# Push a tag like v1.2.3 to build signed APKs and the Windows installer and publish them as a GitHub Release.
+# Running it by hand (workflow_dispatch) builds the same files as artifacts, without a release.
 on:
   push:
     tags: ["v*"]
@@ -11,18 +11,12 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.version.outputs.name }}
+      code: ${{ steps.version.outputs.code }}
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - uses: gradle/actions/setup-gradle@v6
-
       - name: Version from tag
         id: version
         run: |
@@ -37,6 +31,19 @@ jobs:
           [[ $code -gt 0 ]] || code=$GITHUB_RUN_NUMBER
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Restore signing key
         env:
@@ -55,29 +62,73 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: >
-          ./gradlew --no-daemon testDebugUnitTest assembleRelease
-          -PversionName=${{ steps.version.outputs.name }}
-          -PversionCode=${{ steps.version.outputs.code }}
+          ./gradlew --no-daemon :shared:desktopTest :app:assembleRelease
+          -PversionName=${{ needs.version.outputs.name }}
+          -PversionCode=${{ needs.version.outputs.code }}
 
       - name: Collect APKs
         run: |
           mkdir dist
           for abi in arm64-v8a x86_64; do
-            cp "app/build/outputs/apk/release/app-$abi-release.apk" "dist/XPress-${{ steps.version.outputs.name }}-$abi.apk"
+            cp "app/build/outputs/apk/release/app-$abi-release.apk" "dist/XPress-${{ needs.version.outputs.name }}-$abi.apk"
           done
           ls -l dist
           rm -f "$RUNNER_TEMP/release.jks"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: XPress-${{ steps.version.outputs.name }}
+          name: android
           path: dist/*.apk
 
+  windows:
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The desktop tests run the bundled FFmpeg end to end, so they only make sense here.
+      - name: Test and build
+        run: >
+          ./gradlew --no-daemon :desktop:test :desktop:packageReleaseMsi
+          -PversionName=${{ needs.version.outputs.name }}
+
+      - name: Collect installer
+        run: |
+          mkdir dist
+          cp desktop/build/compose/binaries/main-release/msi/*.msi "dist/XPress-${{ needs.version.outputs.name }}-windows-x64.msi"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/*.msi
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [version, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Publish release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.name }}
+          VERSION: ${{ needs.version.outputs.name }}
         run: |
           prerelease=""
           [[ "$VERSION" == *-* ]] && prerelease="--prerelease"
@@ -86,10 +137,11 @@ jobs:
             echo
             echo "- **XPress-$VERSION-arm64-v8a.apk** — для телефонов (практически все Android-устройства)."
             echo "- **XPress-$VERSION-x86_64.apk** — для эмуляторов и x86-планшетов."
+            echo "- **XPress-$VERSION-windows-x64.msi** — для Windows 10 и 11, ставится без прав администратора."
             echo
             echo "Android 10 и новее."
           } > notes.md
-          gh release create "$GITHUB_REF_NAME" dist/*.apk \
+          gh release create "$GITHUB_REF_NAME" dist/* \
             --title "XPress $VERSION" \
             --notes-file notes.md \
             --generate-notes \

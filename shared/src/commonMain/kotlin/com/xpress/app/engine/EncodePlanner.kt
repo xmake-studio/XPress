@@ -16,7 +16,7 @@ import kotlin.math.roundToLong
  */
 object EncodePlanner {
 
-    /** Decimal megabytes: 10 MB = 10 000 000 bytes, which is below Discord's limit either way. */
+    /** Decimal megabytes: 20 MB = 20 000 000 bytes, which is below Discord's limit either way. */
     const val BYTES_PER_MB = 1_000_000L
 
     /** Share of the target we aim at on the first try; the compressor refines it afterwards. */

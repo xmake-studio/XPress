@@ -59,7 +59,7 @@ import com.xpress.app.ui.formatBytes
 import com.xpress.app.ui.planSummary
 import java.util.Locale
 
-private val SIZE_PRESETS = listOf(10.0 to "Discord · 10 МБ", 25.0 to "25 МБ", 50.0 to "50 МБ", 100.0 to "100 МБ")
+private val SIZE_PRESETS = listOf(20.0 to "Discord · 20 МБ", 25.0 to "25 МБ", 50.0 to "50 МБ", 100.0 to "100 МБ")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

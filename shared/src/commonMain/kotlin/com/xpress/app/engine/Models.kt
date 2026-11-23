@@ -11,7 +11,7 @@ enum class EncodeSpeed { FAST, BALANCED, BEST }
 
 data class CompressSettings(
     val mode: SizeMode = SizeMode.TARGET_SIZE,
-    val targetSizeMb: Double = 10.0,
+    val targetSizeMb: Double = 20.0,
     val videoBitrateKbps: Int = 2500,
     /** CRF-like value, lower is better. */
     val quality: Int = 23,

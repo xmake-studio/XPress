@@ -65,7 +65,7 @@ fun HomeScreen(
             Spacer(Modifier.height(4.dp))
             Text("XPress", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
             Text(
-                "Сожмёт видео ровно под нужный размер —\nнапример, под 10 МБ для Discord",
+                "Сожмёт видео ровно под нужный размер —\nнапример, под 20 МБ для Discord",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

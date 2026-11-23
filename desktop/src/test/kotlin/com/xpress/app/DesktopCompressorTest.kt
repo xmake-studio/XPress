@@ -127,8 +127,8 @@ class DesktopCompressorTest {
         assertTrue("portrait expected: ${info.width}x${info.height}", info.width < info.height)
 
         val (result, json) = compress(src, CompressSettings())
-        assertTrue("size ${result.sizeBytes}", result.sizeBytes <= 10_000_000)
-        assertTrue("size ${result.sizeBytes} wastes the budget", result.sizeBytes >= 9_400_000)
+        assertTrue("size ${result.sizeBytes}", result.sizeBytes <= 20_000_000)
+        assertTrue("size ${result.sizeBytes} wastes the budget", result.sizeBytes >= 18_800_000)
 
         val v = json.stream("video")!!
         assertEquals("h264", v.str("codec_name"))

@@ -18,9 +18,10 @@ class EncodePlannerTest {
     private fun full(info: VideoInfo) = TrimRange(0, info.durationMs)
 
     @Test
-    fun discordMinuteOf4k60GetsDownscaledAndHalvedFrameRate() {
-        val plan = EncodePlanner.plan(phone4k, full(phone4k), CompressSettings())
-        assertEquals(10_000_000L, plan.targetBytes)
+    fun discordTwoMinutesOf4k60GetsDownscaledAndHalvedFrameRate() {
+        val clip = phone4k.copy(durationMs = 120_000)
+        val plan = EncodePlanner.plan(clip, full(clip), CompressSettings())
+        assertEquals(20_000_000L, plan.targetBytes)
         assertEquals(96, plan.audioKbps)
         assertEquals(29.0, plan.fps, 1.5)
         assertTrue(plan.reduceFps)
@@ -36,8 +37,8 @@ class EncodePlannerTest {
         val seconds = plan.durationMs / 1000.0
         val total = (plan.videoKbps!! + plan.audioKbps * 1.03) * 1000 / 8 * seconds +
             EncodePlanner.containerOverheadBytes(seconds, 60.0, 48000, true)
-        assertTrue("estimated $total", total <= 10_000_000 * EncodePlanner.FIRST_TRY_FILL + 1)
-        assertTrue("estimated $total", total >= 10_000_000 * 0.97)
+        assertTrue("estimated $total", total <= 20_000_000 * EncodePlanner.FIRST_TRY_FILL + 1)
+        assertTrue("estimated $total", total >= 20_000_000 * 0.97)
     }
 
     @Test
